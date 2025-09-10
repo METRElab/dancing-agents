@@ -1,0 +1,25 @@
+device: cpu
+
+environment:
+  dt: 0.01
+  min_tempo: 0.5
+  max_tempo: 0.5
+  tap_delay: 0.05
+  experiment_type: synchronization
+  reward_type: next+interval
+  jitter: 0.0
+
+rl_algorithm:
+  policy: MlpLstmPolicy
+  learning_rate: 0.0003
+  batch_size: 32
+  gae_lambda: 0.95
+  gamma: 0.99
+  n_epochs: 10
+
+policy_kwargs:
+  lstm_hidden_size: 128
+  n_lstm_layers: 2
+  ortho_init: false
+
+total_timesteps: 20000
