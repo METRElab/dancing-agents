@@ -6,7 +6,13 @@ from sb3_contrib.ppo_recurrent import RecurrentPPO
 from rl_env.synchronization_env import SynchronizationEnv
 
 
-def collect_hidden_states(model_path, config, n_trials=100):
+def collect_hidden_states(model_path, config, n_trials=1000):
+    """Record LSTM hidden-unit trajectories over many test trials.
+
+    The paper applies PCA to the full set of firing-rate trajectories across 1000 test
+    trials, retaining the top three components for visualization. Here ``n_trials`` counts
+    completed episodes; the hidden state is recorded at every timestep.
+    """
     env = SynchronizationEnv(config['environment'])
     model = RecurrentPPO.load(model_path, env=env)
 
@@ -14,7 +20,8 @@ def collect_hidden_states(model_path, config, n_trials=100):
     obs, _ = env.reset()
 
     all_hidden = []
-    for _ in range(n_trials):
+    episodes = 0
+    while episodes < n_trials:
         with torch.no_grad():
             action, lstm_states = model.policy.predict(
                 obs,
@@ -27,6 +34,7 @@ def collect_hidden_states(model_path, config, n_trials=100):
         all_hidden.append(latent)
         obs, _, done, _, _ = env.step(action)
         if done:
+            episodes += 1
             obs, _ = env.reset()
             lstm_states = model.policy.initial_state(1)
 

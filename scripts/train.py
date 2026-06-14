@@ -1,8 +1,8 @@
 import os
 import yaml
 import argparse
-import gymnasium as gym
 import torch
+from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.callbacks import CheckpointCallback
 from sb3_contrib.ppo_recurrent import RecurrentPPO
 from utils.hidden_state_callback import HiddenStateRecorder
@@ -32,14 +32,14 @@ def main():
     policy_kwargs = config.get('policy_kwargs', {})
 
     env_fn = make_env(env_config)
-    env = gym.vector.SyncVectorEnv([lambda: env_fn()])
+    env = make_vec_env(env_fn, n_envs=1)
 
     model = RecurrentPPO(
         policy=rl_config.get('policy', 'MlpLstmPolicy'),
         env=env,
         verbose=1,
         learning_rate=rl_config.get('learning_rate', 3e-4),
-        n_steps=env_config.get('n_steps', 128),
+        n_steps=rl_config.get('n_steps', 1024),
         batch_size=rl_config.get('batch_size', 32),
         gae_lambda=rl_config.get('gae_lambda', 0.95),
         gamma=rl_config.get('gamma', 0.99),

@@ -1,25 +1,33 @@
 device: cpu
 
 environment:
-  dt: 0.01
-  min_tempo: 0.5
-  max_tempo: 0.5
-  tap_delay: 0.05
+  dt: 0.01                          # timestep resolution (seconds)
+  min_ioi: 0.45                     # inter-onset interval lower bound (s) -> 450 ms
+  max_ioi: 0.75                     # inter-onset interval upper bound (s) -> 750 ms
+  tap_delay: 0.05                   # motor execution delay, tap initiation -> landing (50 ms)
   experiment_type: synchronization
-  reward_type: next+interval
-  jitter: 0.0
+  reward_type: next+interval        # asymmetric + interval (paper's most successful agent)
+                                    #   options: nearest | next | nearest+interval | next+interval
+  sync_beats: 10                    # number of audible metronome cues
+  entrainment_beats: 3              # leading non-evaluative cues (synchrony assessed after the 3rd cue)
+  continuation_beats: 0             # silent beats after cues stop (synchronization-continuation task)
+  jitter: 0.0                       # cue-time Gaussian jitter SD in seconds (e.g. 0.03 = 30 ms)
+  perturb_beat: 0                   # 1-indexed cue to perturb (0 = off); paper uses the 6th cue
+  perturb: 0.0                      # perturbation shift in seconds (e.g. 0.02 = 20 ms)
 
 rl_algorithm:
   policy: MlpLstmPolicy
   learning_rate: 0.0003
+  n_steps: 1024
   batch_size: 32
   gae_lambda: 0.95
   gamma: 0.99
   n_epochs: 10
+  ent_coef: 0.01
 
 policy_kwargs:
-  lstm_hidden_size: 128
-  n_lstm_layers: 2
+  lstm_hidden_size: 128             # single LSTM layer with 128 recurrent units
+  n_lstm_layers: 1
   ortho_init: false
 
-total_timesteps: 20000
+total_timesteps: 500000
