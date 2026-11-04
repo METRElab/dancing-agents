@@ -88,6 +88,19 @@ class SynchronizationEnv(gym.Env):
         # Whole-episode no-tap penalty (paper: r_notap = -1).
         self.notap_penalty = float(config.get("notap_penalty", -1.0))
 
+        # How a tap initiated while another is still in flight is handled:
+        #   "queue"     -> both land (the paper's baseline; it notes the agent "tended to
+        #                  initiate multiple taps before any of them were executed")
+        #   "freeze"    -> the new initiation is IGNORED ("Tap Freeze", paper p. 7)
+        #   "overwrite" -> the new initiation CANCELS the in-flight tap (the behaviour of
+        #                  the original single-slot code; lands 0 taps under sustained
+        #                  tapping, so it models nothing physical -- kept to reproduce it)
+        self.tap_execution = str(config.get("tap_execution", "queue")).strip().lower()
+        if self.tap_execution not in ("queue", "freeze", "overwrite"):
+            raise ValueError(
+                f"tap_execution must be queue|freeze|overwrite, got {self.tap_execution!r}"
+            )
+
         # Single-cue perturbation (paper: 6th cue shifted by 20 ms).
         self.perturb_beat = int(config.get("perturb_beat", 0))  # 1-indexed; 0 = off
         self.perturb = float(config.get("perturb", 0.0))         # shift in seconds
@@ -102,7 +115,7 @@ class SynchronizationEnv(gym.Env):
         self.tap_buffer = []
         self.current_step = 0
         self.timestep_limit = None
-        self.pending_tap = None
+        self.pending_taps = []
 
         self._missed_window = 0
         self._eval_cutoff = 0
@@ -115,7 +128,7 @@ class SynchronizationEnv(gym.Env):
         ioi_s = float(self.np_random.uniform(self.min_ioi, self.max_ioi))
         self.ioi = max(1, int(round(ioi_s / self.dt)))
         total_beats = self.sync_beats + self.continuation_beats
-        self.timestep_limit = self.ioi * (total_beats + 2)
+        self.timestep_limit = self.ioi * total_beats
 
         # Audible sync cues at nominal grid positions.
         self.cue_times = [i * self.ioi for i in range(self.sync_beats)]
@@ -143,7 +156,7 @@ class SynchronizationEnv(gym.Env):
 
         self.tap_buffer = []
         self.current_step = 0
-        self.pending_tap = None
+        self.pending_taps = []
 
         self._missed_window = max(1, int(round(self.missed_tap_window_frac * self.ioi)))
         # Taps before this step belong to the entrainment phase and are not evaluated.
@@ -161,12 +174,14 @@ class SynchronizationEnv(gym.Env):
 
         nearest = min(self.virtual_cue_times, key=lambda c: abs(c - tap_time))
         next_cues = [c for c in self.virtual_cue_times if c >= tap_time]
-        next_cue = next_cues[0] if next_cues else nearest
 
         if "nearest" in tokens:
             r_async = -abs(tap_time - nearest) * self.dt
         elif "next" in tokens:
-            r_async = -(next_cue - tap_time) * self.dt
+            if next_cues:
+                r_async = -(next_cues[0] - tap_time) * self.dt
+            else:
+                r_async = -abs(tap_time - nearest) * self.dt
         else:
             r_async = 0.0
         return float(r_async)
@@ -230,13 +245,22 @@ class SynchronizationEnv(gym.Env):
         info = {}
 
         if action == 1:
-            self.pending_tap = self.current_step + self.tap_delay
+            if self.tap_execution == "queue":
+                self.pending_taps.append(self.current_step + self.tap_delay)
+            elif self.tap_execution == "freeze":
+                if not self.pending_taps:          # ignore while one is in flight
+                    self.pending_taps.append(self.current_step + self.tap_delay)
+            else:                                   # "overwrite"
+                self.pending_taps = [self.current_step + self.tap_delay]
 
-        if self.pending_tap is not None and self.pending_tap == self.current_step:
-            self.tap_buffer.append(self.current_step)
-            self._register_tap_for_missed(self.current_step)
-            reward += self._compute_reward(self.current_step)
-            self.pending_tap = None
+        # Drain every tap whose landing time has arrived (<= so none is lost).
+        landed = [t for t in self.pending_taps if t <= self.current_step]
+        if landed:
+            self.pending_taps = [t for t in self.pending_taps if t > self.current_step]
+            for _ in landed:
+                self.tap_buffer.append(self.current_step)
+                self._register_tap_for_missed(self.current_step)
+                reward += self._compute_reward(self.current_step)
 
         # Missed-cue penalties for any evaluated cue whose window has just closed.
         reward += self._missed_cue_penalties()

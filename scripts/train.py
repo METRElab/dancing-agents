@@ -6,6 +6,7 @@ from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.callbacks import CheckpointCallback
 from sb3_contrib.ppo_recurrent import RecurrentPPO
 from utils.hidden_state_callback import HiddenStateRecorder
+from utils.training_monitor import TrainingMonitor
 from rl_env.synchronization_env import SynchronizationEnv
 
 
@@ -38,13 +39,13 @@ def main():
         policy=rl_config.get('policy', 'MlpLstmPolicy'),
         env=env,
         verbose=1,
-        learning_rate=rl_config.get('learning_rate', 3e-4),
+        learning_rate=rl_config.get('learning_rate', 1e-4),
         n_steps=rl_config.get('n_steps', 1024),
         batch_size=rl_config.get('batch_size', 32),
         gae_lambda=rl_config.get('gae_lambda', 0.95),
         gamma=rl_config.get('gamma', 0.99),
         n_epochs=rl_config.get('n_epochs', 10),
-        ent_coef=rl_config.get('ent_coef', 0.01),
+        ent_coef=rl_config.get('ent_coef', 0.001),
         policy_kwargs=policy_kwargs,
         tensorboard_log="logs/"
     )
@@ -58,9 +59,15 @@ def main():
     verbose=1
 )
 
+    monitor_callback = TrainingMonitor(
+        out_dir="logs",
+        plot_freq=10000,       # write logs/training_progress.png every 10k steps
+        verbose=1
+    )
+
     model.learn(
     total_timesteps=config.get('total_timesteps', 1e6),
-    callback=[checkpoint_callback, hidden_callback]
+    callback=[checkpoint_callback, hidden_callback, monitor_callback]
 )
 
     model.save("models/final_model")

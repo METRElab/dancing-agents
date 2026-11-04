@@ -5,6 +5,11 @@ environment:
   min_ioi: 0.45                     # inter-onset interval lower bound (s) -> 450 ms
   max_ioi: 0.75                     # inter-onset interval upper bound (s) -> 750 ms
   tap_delay: 0.05                   # motor execution delay, tap initiation -> landing (50 ms)
+  tap_execution: queue              # how a tap initiated mid-flight is handled:
+                                    #   queue     | both land (paper's baseline)
+                                    #   freeze    | new initiation ignored ("Tap Freeze", p. 7)
+                                    #   overwrite | new initiation cancels the in-flight tap
+                                    #               (original single-slot code; lands 0 taps)
   experiment_type: synchronization
   reward_type: next+interval        # asymmetric + interval (paper's most successful agent)
                                     #   options: nearest | next | nearest+interval | next+interval
@@ -17,17 +22,17 @@ environment:
 
 rl_algorithm:
   policy: MlpLstmPolicy
-  learning_rate: 0.0003
-  n_steps: 1024
+  learning_rate: 0.0001              # Supp. Table 1 (Asymmetric + Interval)
+  n_steps: 300                       # Supp. Table 1 "Episode Horizon"
   batch_size: 32
   gae_lambda: 0.95
   gamma: 0.99
   n_epochs: 10
-  ent_coef: 0.01
+  ent_coef: 0.001                    # Supp. Table 1 (Asymmetric + Interval)
 
 policy_kwargs:
   lstm_hidden_size: 128             # single LSTM layer with 128 recurrent units
   n_lstm_layers: 1
   ortho_init: false
 
-total_timesteps: 500000
+total_timesteps: 20000000
