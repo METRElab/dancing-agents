@@ -25,15 +25,25 @@ def make_env(env_config):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', type=str, required=True, help='Path to config.yaml')
+    parser.add_argument('--seed', type=int, default=None, help='Random seed (makes a run repeatable)')
+    parser.add_argument('--out', type=str, default='.', help='Directory for this run\'s models/ and logs/')
+    parser.add_argument('--gamma', type=float, default=None, help='Overrides gamma in the config')
     args = parser.parse_args()
 
     config = load_config(args.config)
     env_config = config['environment']
     rl_config = config['rl_algorithm']
     policy_kwargs = config.get('policy_kwargs', {})
+    if args.gamma is not None:
+        rl_config['gamma'] = args.gamma
+
+    model_dir = os.path.join(args.out, "models")
+    log_dir = os.path.join(args.out, "logs")
+    os.makedirs(model_dir, exist_ok=True)
+    os.makedirs(log_dir, exist_ok=True)
 
     env_fn = make_env(env_config)
-    env = make_vec_env(env_fn, n_envs=1)
+    env = make_vec_env(env_fn, n_envs=1, seed=args.seed)
 
     model = RecurrentPPO(
         policy=rl_config.get('policy', 'MlpLstmPolicy'),
@@ -47,21 +57,22 @@ def main():
         n_epochs=rl_config.get('n_epochs', 10),
         ent_coef=rl_config.get('ent_coef', 0.001),
         policy_kwargs=policy_kwargs,
-        tensorboard_log="logs/"
+        seed=args.seed,
+        tensorboard_log=log_dir
     )
 
-    checkpoint_callback = CheckpointCallback(save_freq=10000, save_path="models/",
+    checkpoint_callback = CheckpointCallback(save_freq=10000, save_path=model_dir,
                                              name_prefix="rl_model")
     
     hidden_callback = HiddenStateRecorder(
-    save_path="logs/hidden_states.npy",
+    save_path=os.path.join(log_dir, "hidden_states.npy"),
     save_freq=5000,
     verbose=1
 )
 
     monitor_callback = TrainingMonitor(
-        out_dir="logs",
-        plot_freq=10000,       # write logs/training_progress.png every 10k steps
+        out_dir=log_dir,
+        plot_freq=10000,
         verbose=1
     )
 
@@ -70,7 +81,7 @@ def main():
     callback=[checkpoint_callback, hidden_callback, monitor_callback]
 )
 
-    model.save("models/final_model")
+    model.save(os.path.join(model_dir, "final_model"))
 
 if __name__ == '__main__':
     main()
