@@ -1,0 +1,34 @@
+# Plain asymmetric agent (reward Eq. 2 only, no interval term).
+device: cpu
+
+environment:
+  dt: 0.01
+  min_ioi: 0.45
+  max_ioi: 0.75
+  tap_delay: 0.05
+  tap_execution: queue
+  experiment_type: synchronization
+  reward_type: next                 # asymmetric only
+  sync_beats: 10
+  entrainment_beats: 3
+  continuation_beats: 0
+  jitter: 0.0
+  perturb_beat: 0
+  perturb: 0.0
+
+rl_algorithm:
+  policy: MlpLstmPolicy
+  learning_rate: 0.00005            # Supp. Table 1 (Asymmetric)
+  n_steps: 300                      # Supp. Table 1 "Episode Horizon"
+  batch_size: 64                    # Supp. Table 1 (Asymmetric)
+  gae_lambda: 0.95
+  gamma: 0.99
+  n_epochs: 10
+  ent_coef: 0.002                   # Supp. Table 1 (Asymmetric)
+
+policy_kwargs:
+  lstm_hidden_size: 128
+  n_lstm_layers: 1
+  ortho_init: false
+
+total_timesteps: 2000000            # 5.5 simulated hours
