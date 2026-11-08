@@ -151,3 +151,7 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
+
+# Training runs
+runs/
+logs_baseline_lr3e-4/
